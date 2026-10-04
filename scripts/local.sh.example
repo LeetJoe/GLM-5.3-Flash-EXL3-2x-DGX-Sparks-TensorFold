@@ -1,6 +1,14 @@
 # Copy to scripts/local.sh (not in git) and fill in this setup's values; scripts/config.sh reads it first.
+HF_CACHE=/models/nohf
+GLM_SUB_FOLDER=GLM-5.3-Flash-tr3-4bpw
+GLM_DFLASH2_SUB_FOLDER=GLM-5.3-Flash-DFlash2
+PREPARE=0
+# MODEL_REVISION=
+
 WORKER=user@192.0.2.2          # ssh target of the second Spark (key-based: ssh-copy-id user@192.0.2.2)
 # FABRIC_PEER=192.0.2.12       # the worker's CX7 address, when WORKER is reached over another network
+WORKER_HF_CACHE=/models/hf
+
 # A third Spark (./start-tp3.sh, experimental; README "3 Sparks"):
 # WORKER2=user@192.0.2.3       # rank 2
 # WORKER_WEIGHTS2=nfs          # per worker: copy or nfs (default: WORKER_WEIGHTS)
