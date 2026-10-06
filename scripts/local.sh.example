@@ -6,7 +6,7 @@ PREPARE=0
 # MODEL_REVISION=
 
 WORKER=user@192.0.2.2          # ssh target of the second Spark (key-based: ssh-copy-id user@192.0.2.2)
-# FABRIC_PEER=192.0.2.12       # the worker's CX7 address, when WORKER is reached over another network
+FABRIC_PEER=192.0.2.12       # the worker's CX7 address, when WORKER is reached over another network
 WORKER_HF_CACHE=/models/hf
 
 # A third Spark (./start-tp3.sh, experimental; README "3 Sparks"):

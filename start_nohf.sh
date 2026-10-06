@@ -278,7 +278,8 @@ launch() {
   local rank0 rankw worker_cmd remote a i
   local -a here_cmd
   for (( i = TP - 1; i >= 1; i-- )); do
-    rankw=(tensorfold serve "$MODEL_ARG" --tp "$TP" --rank "$i" --master "$MASTER_ADDR" --master-port "$MASTER_PORT" "${SERVE_ARGS[@]}")
+    # /root/.cache/huggingface/40-update-tensorfold.sh
+    rankw=(/root/.cache/huggingface/40-update-tensorfold.sh "$MODEL_ARG" --tp "$TP" --rank "$i" --master "$MASTER_ADDR" --master-port "$MASTER_PORT" "${SERVE_ARGS[@]}")
     log "Rank $i on $(worker_host "$i"): ${rankw[*]}"
     worker_cmd=(docker run -d --name "$CONTAINER_NAME" "${RUN_ARGS[@]}" "${ENV_ARGS[@]}"
                 $(rank_nccl_env "$i")
@@ -293,7 +294,8 @@ launch() {
     fi
     worker "$i" "mkdir -p \$HOME/.cache/tensorfold-glm53 &&$remote" >/dev/null || die "could not start rank $i on $(worker_host "$i")"
   done
-  rank0=(tensorfold serve "$MODEL_ARG" --tp "$TP" --rank 0 --master "$MASTER_ADDR" --master-port "$MASTER_PORT"
+  # /root/.cache/huggingface/40-update-tensorfold.sh
+  rank0=(/root/.cache/huggingface/40-update-tensorfold.sh "$MODEL_ARG" --tp "$TP" --rank 0 --master "$MASTER_ADDR" --master-port "$MASTER_PORT"
          --name "$SERVED_NAME" --host "$HOST" --port "$PORT" "${SERVE_ARGS[@]}")
   log "Rank 0 here: ${rank0[*]}"
   here_cmd=(docker run -d --name "$CONTAINER_NAME" "${RUN_ARGS[@]}" "${ENV_ARGS[@]}"
