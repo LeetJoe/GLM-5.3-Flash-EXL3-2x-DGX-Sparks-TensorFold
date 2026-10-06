@@ -28,6 +28,66 @@ vision, tool calling, `/tokenize` and `/metrics`.
 - Tool calling, structured outputs (xgrammar), `/tokenize`, and `reasoning_effort` `low` / `high` / `max`
 - One command on the first Spark: `./start.sh` sets up both Sparks and starts both ranks; `./stop.sh` stops them
 
+## What's new in this fork
+
+This fork is based on [`MiaAI-Lab/GLM-5.3-Flash-EXL3-2x-DGX-Sparks-TensorFold`](https://github.com/MiaAI-Lab/GLM-5.3-Flash-EXL3-2x-DGX-Sparks-TensorFold)
+at commit `1576746a04983b6eded0551dbf22512ee9e95654` and adds two changes, both wired through **`start_nohf.sh`**, a
+variant of `start.sh` that resolves the model from plain weight directories and runs the containers with a custom
+entrypoint. All other serving defaults, checks and monitoring are unchanged; use `./start_nohf.sh` in place of
+`./start.sh` (and `./stop.sh` to stop, as before).
+
+### Local weights support
+
+Upstream resolves the checkpoint and the DFlash2 drafter inside a Hugging Face cache layout
+(`hub/models--<org>--<repo>/snapshots/<revision>` under `HF_CACHE` / `WORKER_HF_CACHE`), which `scripts/prepare.sh`
+populates with its downloads. This fork instead points the ranks at plain directories under the cache mount, so weights
+fetched with `hf download --local-dir` (or laid out any other way) work as-is, with no dependency on the cache's
+snapshots-and-blobs structure or on pinned revisions:
+
+```bash
+# scripts/local.sh
+HF_CACHE=/models/nohf        # head: the directory mounted at /root/.cache/huggingface in rank 0's container
+WORKER_HF_CACHE=/models/hf   # worker: the same for rank 1
+GLM_SUB_FOLDER=GLM-5.3-Flash-tr3-4bpw            # the checkpoint directory, directly under the cache mount
+GLM_DFLASH2_SUB_FOLDER=GLM-5.3-Flash-DFlash2     # the DFlash2 drafter directory, likewise
+PREPARE=0                    # prepare.sh assumes the cache layout; manage the weights yourself
+```
+
+For example, to fetch the checkpoint into that layout:
+
+```bash
+hf download Mia-AiLab/GLM-5.3-Flash-EXL3-4bpw-TensorFold --local-dir "$HF_CACHE/GLM-5.3-Flash-tr3-4bpw"
+```
+
+`start_nohf.sh` passes these directories to the ranks as-is (it no longer resolves revisions or checks their
+contents), so both directories must exist on both Sparks under the paths above; a missing or incomplete one fails at
+model load rather than at the preflight checks. Set `PREPARE=0` so the original `scripts/prepare.sh` setup is skipped.
+
+### Anthropic API support
+
+The published image serves TensorFold v0.6.0, which has no Anthropic `/v1/messages` endpoint. This fork backports the
+Anthropic API support that TensorFold gained in v0.6.3: the relevant sources are kept in the
+[`LeetJoe/TensorFold`](https://github.com/LeetJoe/TensorFold) fork (branch `backport-anthropic-test`) and injected into
+the container at startup, rather than baked into a new image:
+
+1. Copy `extra_entry/40-update-tensorfold.sh` to the root of `$HF_CACHE` on the head and of `$WORKER_HF_CACHE` on the
+   worker (keep the name — `start_nohf.sh` runs it as the containers' entrypoint, mounted at
+   `/root/.cache/huggingface/40-update-tensorfold.sh`).
+2. Clone the patched sources into the same directories on both Sparks and check out the branch:
+
+   ```bash
+   git clone https://github.com/LeetJoe/TensorFold.git /path/to/HF_CACHE/TensorFold
+   git -C /path/to/HF_CACHE/TensorFold checkout backport-anthropic-test
+   ```
+
+3. Start the service on the head with `./start_nohf.sh`.
+
+At each container start, the entrypoint copies the patched Python sources from the mounted clone
+(`TensorFold/src/tensorfold`) over the installed `tensorfold` package — excluding `__pycache__`, `*.cu` and `*.so`, so
+the image's compiled CUDA kernels are kept — and then execs `tensorfold serve`. The image itself is left untouched (no
+rebuild), and because the sources are read from the mount on every start, updating the clone updates the container's
+code on the next `./start_nohf.sh restart`. The API then also exposes `/v1/messages` alongside the OpenAI endpoints.
+
 ## Performance
 
 Two DGX Sparks at the default configuration (4 streams, 1,048,576-token window, FP8 KV cache, 4-bit dense weights,
