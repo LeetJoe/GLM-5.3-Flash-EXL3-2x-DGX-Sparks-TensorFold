@@ -88,6 +88,16 @@ the image's compiled CUDA kernels are kept — and then execs `tensorfold serve`
 rebuild), and because the sources are read from the mount on every start, updating the clone updates the container's
 code on the next `./start_nohf.sh restart`. The API then also exposes `/v1/messages` alongside the OpenAI endpoints.
 
+An alternative to this live patch: the `main_dev` branch takes in the same backport at build time. `main_dev` keeps
+this repository synced with [the upstream repository](https://github.com/MiaAI-Lab/GLM-5.3-Flash-EXL3-2x-DGX-Sparks-TensorFold)
+(current with it through its v1.8 release) and adds the Anthropic API support on top as one patch,
+`patches/0084-server-anthropic-api.patch`, which carries the same sources as the `backport-anthropic-test` branch as a
+diff against TensorFold's site-packages. `scripts/prepare.sh` applies every `patches/*.patch` when it builds the image
+(and builds it locally, since this branch's patch set is not published on GHCR), so a `main_dev` checkout can build a
+new image and run it with `./start.sh` as before: `/v1/messages` comes straight from the image, with no
+`40-update-tensorfold.sh` to copy and no `TensorFold` clone to place (this branch has neither `extra_entry/` nor
+`start_nohf.sh`: the live patch is the `main` way).
+
 ## Performance
 
 Two DGX Sparks at the default configuration (4 streams, 1,048,576-token window, FP8 KV cache, 4-bit dense weights,
