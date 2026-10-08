@@ -63,41 +63,6 @@ hf download Mia-AiLab/GLM-5.3-Flash-EXL3-4bpw-TensorFold --local-dir "$HF_CACHE/
 contents), so both directories must exist on both Sparks under the paths above; a missing or incomplete one fails at
 model load rather than at the preflight checks. Set `PREPARE=0` so the original `scripts/prepare.sh` setup is skipped.
 
-### Anthropic API support
-
-The published image serves TensorFold v0.6.0, which has no Anthropic `/v1/messages` endpoint. This fork backports the
-Anthropic API support that TensorFold gained in v0.6.3: the relevant sources are kept in the
-[`LeetJoe/TensorFold`](https://github.com/LeetJoe/TensorFold) fork (branch `backport-anthropic-test`) and injected into
-the container at startup, rather than baked into a new image:
-
-1. Copy `extra_entry/40-update-tensorfold.sh` to the root of `$HF_CACHE` on the head and of `$WORKER_HF_CACHE` on the
-   worker (keep the name — `start_nohf.sh` runs it as the containers' entrypoint, mounted at
-   `/root/.cache/huggingface/40-update-tensorfold.sh`).
-2. Clone the patched sources into the same directories on both Sparks and check out the branch:
-
-   ```bash
-   git clone https://github.com/LeetJoe/TensorFold.git /path/to/HF_CACHE/TensorFold
-   git -C /path/to/HF_CACHE/TensorFold checkout backport-anthropic-test
-   ```
-
-3. Start the service on the head with `./start_nohf.sh`.
-
-At each container start, the entrypoint copies the patched Python sources from the mounted clone
-(`TensorFold/src/tensorfold`) over the installed `tensorfold` package — excluding `__pycache__`, `*.cu` and `*.so`, so
-the image's compiled CUDA kernels are kept — and then execs `tensorfold serve`. The image itself is left untouched (no
-rebuild), and because the sources are read from the mount on every start, updating the clone updates the container's
-code on the next `./start_nohf.sh restart`. The API then also exposes `/v1/messages` alongside the OpenAI endpoints.
-
-An alternative to this live patch: the `main_dev` branch takes in the same backport at build time. `main_dev` keeps
-this repository synced with [the upstream repository](https://github.com/MiaAI-Lab/GLM-5.3-Flash-EXL3-2x-DGX-Sparks-TensorFold)
-(current with it through its v1.8 release) and adds the Anthropic API support on top as one patch,
-`patches/0084-server-anthropic-api.patch`, which carries the same sources as the `backport-anthropic-test` branch as a
-diff against TensorFold's site-packages. `scripts/prepare.sh` applies every `patches/*.patch` when it builds the image
-(and builds it locally, since this branch's patch set is not published on GHCR), so a `main_dev` checkout can build a
-new image and run it with `./start.sh` as before: `/v1/messages` comes straight from the image, with no
-`40-update-tensorfold.sh` to copy and no `TensorFold` clone to place (this branch has neither `extra_entry/` nor
-`start_nohf.sh`: the live patch is the `main` way).
-
 ## Performance
 
 Two DGX Sparks at the default configuration (4 streams, 1,048,576-token window, FP8 KV cache, 4-bit dense weights,
