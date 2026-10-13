@@ -125,6 +125,14 @@ prompt. Two Sparks therefore stay at 4 by default; three Sparks default to 8 ([3
 
 Details on the [model card](https://huggingface.co/Mia-AiLab/GLM-5.3-Flash-EXL3-4bpw-TensorFold).
 
+**Quality and precision trade-off:** The default `DENSE=q4 KV=fp8` configuration prioritizes throughput, memory
+efficiency, and the full 1M-token context window. Both 4-bit dense-weight quantization and FP8 KV-cache quantization
+introduce numerical loss. Compared with `DENSE=fp8 KV=bf16`, the defaults are expected to have lower numerical fidelity
+and may produce more quality regressions, particularly on sensitive tasks or long-context workloads. The
+higher-precision configuration reduces these sources of quantization error, at the cost of speed, memory, and available
+context. This is an expected trade-off, not evidence of an implementation defect. Actual quality differences depend on
+the workload and require comparative benchmarking.
+
 ### Independent Mac Studio / MCDMA qualification
 
 An independent community experiment extended the two-Spark setup with an M3 Ultra Mac Studio over
